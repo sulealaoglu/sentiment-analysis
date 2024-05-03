@@ -38,10 +38,20 @@ from sklearn.svm import SVC
 from spacy.lang.tr import Turkish
 import jpype
 from jpype import JClass, JString, getDefaultJVMPath, shutdownJVM, startJVM, java
+from TurkishStemmer import TurkishStemmer
+
+def readExcel():
+    df = pd.read_excel("./ANEW_Turkish.xlsx")
+    
+    for index, row in df.iterrows():
+        turkish = row['TR']
+        v = row['V']
+        a = row['A']
+        d = row['D']
+        word_list[turkish] = {'V': v, 'A': a, 'D': d}
 
 def getWordWeights():
-    stn = pd.read_excel("./STN.xlsx")
-    stn = stn.drop_duplicates(['synonyms']).set_index('synonyms')
+    stn = pd.read_excel("./ANEW_Turkish.xlsx")
     for words in stn.index:
         if words in stn.index:
             if words is np.nan:
@@ -85,9 +95,9 @@ def feature_extraction(text):
     neg_val = 0
     for token in text:
         word = token.lower()
-        if word in final_stn:
-            pos_val += final_stn[word]['pos']
-            neg_val +=  final_stn[word]['neg']
+        if word in word_list:
+            pos_val += word_list[word]['V']
+            neg_val +=  word_list[word]['A']
     print ('Positive Weight: ', pos_val , 'Negative Weight : ', neg_val)
     if pos_val > neg_val :
         return 'Positive'
@@ -108,20 +118,25 @@ def sentiment_analysis(sentence):
     stems = Lemmatization(corrected)
     return stems
 
-
-final_stn = {}
+#kelime ağırlıklarının tutulduğu liste - readExcel() fonksiyonu ile dolduruluyor
+word_list = {}
+#stop wordler için
 stop_word_list = []
+#nltk kütüphanesinden turkce dili icin stop wordleri al ve olmayanları kendin de ekle
 stop_word_list = nltk.corpus.stopwords.words('turkish')    
 stop_word_list.extend(["bir","kadar","sonra","kere","mi","ye","te","ta","nun","daki","nın","ten"])
 
+#zemberek kütüphanesini tanımla , java virtual machine ile çalıştır
 ZEMBEREK_PATH ='./zemberek-full.jar' 
 startJVM(getDefaultJVMPath(), '-ea', '-Djava.class.path=%s' % (ZEMBEREK_PATH))
 TurkishMorphology: JClass = JClass('zemberek.morphology.TurkishMorphology')
-morphology = TurkishMorphology.createWithDefaults()
+morphology = TurkishMorphology.createWithDefaults() 
 TurkishSpellChecker: JClass = JClass('zemberek.normalization.TurkishSpellChecker')
-spell_checker: TurkishSpellChecker  = TurkishSpellChecker(morphology)
-getWordWeights()
+spell_checker: TurkishSpellChecker  = TurkishSpellChecker(morphology) 
 
-example = 'merhaba dünya , bugün güzel bir gün.'
+
+readExcel()
+example = 'senden nefret etmiyorum'
 stems = sentiment_analysis(example)
+print(stems)
 print(feature_extraction(stems))
